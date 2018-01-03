@@ -1,0 +1,142 @@
+package deeplydiligent.vidnote;
+
+import android.content.Context;
+import android.content.DialogInterface;
+import android.content.Intent;
+import android.content.SharedPreferences;
+import android.net.Uri;
+import android.os.Environment;
+import android.support.v7.app.AlertDialog;
+import android.support.v7.app.AppCompatActivity;
+import android.os.Bundle;
+import android.util.Log;
+import android.view.LayoutInflater;
+import android.view.View;
+import android.view.ViewGroup;
+import android.widget.AdapterView;
+import android.widget.ArrayAdapter;
+import android.widget.BaseAdapter;
+import android.widget.ImageView;
+import android.widget.ListView;
+import android.widget.TextView;
+
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Map;
+
+public class ActivitySavedVideos extends AppCompatActivity {
+
+    private ListView listView1;
+    private ArrayList<String> listIDs;
+    private ArrayList<String> listItems;
+    private ArrayAdapter<String> adapter;
+    private Context context = this;
+    private int positioninlist;
+    private ArrayList<String> data = new ArrayList<String>();
+    private String prefsString;
+
+    private final String PREFS_NAME = "com.example.vidnote.VIDEONOTES";
+
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        listItems=new ArrayList<String>();
+        listIDs=new ArrayList<String>();
+        super.onCreate(savedInstanceState);
+        setContentView(R.layout.activity_saved_videos);
+
+        listView1 = (ListView)findViewById(R.id.menuList);
+        adapter = new ArrayAdapter<String>(this,
+                android.R.layout.simple_list_item_1,
+                listItems);
+        listView1.setAdapter(adapter);
+
+        SharedPreferences prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+
+        Map<String,?> keys = prefs.getAll();
+
+        for(Map.Entry<String,?> entry : keys.entrySet()){
+            YoutubeData data = new YoutubeData();
+            data.setOnResponseListener(new ResponseListener() {
+                @Override
+                public void onResponseReceive(String data, String id) {
+                    listItems.add(data);
+                    listIDs.add(id);
+                    adapter.notifyDataSetChanged();
+                }
+            });
+            data.execute(entry.getKey().substring(11));
+            Log.d("map values",entry.getKey() + ": " +
+                    entry.getValue().toString());
+
+        }
+        listView1.setOnItemClickListener(new AdapterView.OnItemClickListener() {
+            @Override
+            public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
+                getData(listIDs.get(positioninlist));
+                positioninlist = position;
+                new AlertDialog.Builder(context)
+                        .setTitle("Play or Export")
+                        .setMessage("Would you like to play or export the subtitles?")
+                        .setPositiveButton("Play", new DialogInterface.OnClickListener() {
+                            @Override
+                            public void onClick(DialogInterface dialog, int which) {
+                                Intent intent = new Intent(context, video.class);
+                                intent.putExtra("com.example.vidnote.MESSAGE", "https://m.youtube.com/watch?v=" + listIDs.get(positioninlist));
+                                startActivity(intent);
+                            }
+                        }).setNegativeButton("Export", new DialogInterface.OnClickListener() {
+                            @Override
+                            public void onClick(DialogInterface dialog, int which) {
+                                File file = new File(context.getFilesDir(), "export.txt");
+
+                                try {
+                                    if (!file.exists()) {
+                                        file.createNewFile();
+                                    }
+                                    FileOutputStream writer = openFileOutput(file.getName(), Context.MODE_PRIVATE);
+                                    for (String string: data){
+                                        writer.write(string.getBytes());
+                                        writer.flush();
+                                    }
+
+                                    writer.close();
+                                } catch (IOException e){
+                                    e.printStackTrace();
+                                }
+
+                                Intent sharingIntent = new Intent(Intent.ACTION_SEND);
+                                sharingIntent.setType("text/*");
+                                sharingIntent.putExtra(Intent.EXTRA_STREAM, Uri.parse("file://" + file.getAbsolutePath()));
+                                startActivity(Intent.createChooser(sharingIntent, "share file with"));
+                            }
+                        }).show();
+
+            }
+        });
+    }
+
+    public void getData(String vidID){
+        SharedPreferences prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+        data = new ArrayList<String>(1);
+        ArrayList<ArrayList<String>> savedTasks = new ArrayList<ArrayList<String>>(1);
+        try{
+            prefsString = prefs.getString("textboxdata"+vidID,ObjectSearlizer.serialize(new ArrayList<ArrayList<String>>()));
+            savedTasks = (ArrayList<ArrayList<String>>) ObjectSearlizer.deserialize(prefsString);
+        } catch (IOException e){
+            e.printStackTrace();
+        } catch (ClassNotFoundException e){
+            e.printStackTrace();
+        }
+
+
+        for (ArrayList<String> line: savedTasks) {
+            data.add(line.get(0).toString()+"\t"+line.get(1).toString());
+        }
+//        textView.setText(textView.getText().toString().trim());
+    }
+
+}
