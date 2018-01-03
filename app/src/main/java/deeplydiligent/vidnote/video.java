@@ -420,4 +420,11 @@ public class video extends AppCompatActivity {
         return true;
     }
 
+    @Override
+    protected void onPause() {
+        if (!editText.getText().toString().equals("")){
+            saveNotesNow();
+        }
+        super.onPause();
+    }
 }

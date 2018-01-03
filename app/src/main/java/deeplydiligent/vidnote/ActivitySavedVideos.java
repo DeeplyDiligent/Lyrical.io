@@ -9,6 +9,7 @@ import android.os.Environment;
 import android.support.v7.app.AlertDialog;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
+import android.support.v7.widget.Toolbar;
 import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -37,28 +38,34 @@ public class ActivitySavedVideos extends AppCompatActivity {
     private int positioninlist;
     private ArrayList<String> data = new ArrayList<String>();
     private String prefsString;
+    SharedPreferences prefs;
 
     private final String PREFS_NAME = "com.example.vidnote.VIDEONOTES";
 
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
-        listItems=new ArrayList<String>();
-        listIDs=new ArrayList<String>();
+        listItems = new ArrayList<String>();
+        listIDs = new ArrayList<String>();
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_saved_videos);
 
-        listView1 = (ListView)findViewById(R.id.menuList);
+        Toolbar toolbar = (Toolbar) findViewById(R.id.saved_videos_toolbar);
+        setSupportActionBar(toolbar);
+        getSupportActionBar().setTitle("Saved Videos");
+        getSupportActionBar().setDisplayHomeAsUpEnabled(true);
+
+        listView1 = (ListView) findViewById(R.id.menuList);
         adapter = new ArrayAdapter<String>(this,
                 android.R.layout.simple_list_item_1,
                 listItems);
         listView1.setAdapter(adapter);
 
-        SharedPreferences prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+        prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
 
-        Map<String,?> keys = prefs.getAll();
+        Map<String, ?> keys = prefs.getAll();
 
-        for(Map.Entry<String,?> entry : keys.entrySet()){
+        for (Map.Entry<String, ?> entry : keys.entrySet()) {
             YoutubeData data = new YoutubeData();
             data.setOnResponseListener(new ResponseListener() {
                 @Override
@@ -69,18 +76,18 @@ public class ActivitySavedVideos extends AppCompatActivity {
                 }
             });
             data.execute(entry.getKey().substring(11));
-            Log.d("map values",entry.getKey() + ": " +
+            Log.d("map values", entry.getKey() + ": " +
                     entry.getValue().toString());
 
         }
         listView1.setOnItemClickListener(new AdapterView.OnItemClickListener() {
             @Override
-            public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
+            public void onItemClick(AdapterView<?> parent, View view, final int position, long id) {
                 getData(listIDs.get(positioninlist));
                 positioninlist = position;
                 new AlertDialog.Builder(context)
-                        .setTitle("Play or Export")
-                        .setMessage("Would you like to play or export the subtitles?")
+                        .setTitle("Options")
+                        .setMessage("Would you like to play, delete or export the subtitles?")
                         .setPositiveButton("Play", new DialogInterface.OnClickListener() {
                             @Override
                             public void onClick(DialogInterface dialog, int which) {
@@ -89,54 +96,57 @@ public class ActivitySavedVideos extends AppCompatActivity {
                                 startActivity(intent);
                             }
                         }).setNegativeButton("Export", new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialog, int which) {
+                        String file = "";
+
+                        for (String string : data) {
+                            file += string;
+                        }
+
+                        Intent sendIntent = new Intent();
+                        sendIntent.setAction(Intent.ACTION_SEND);
+                        sendIntent.putExtra(Intent.EXTRA_TEXT, file);
+                        sendIntent.setType("text/plain");
+                        startActivity(Intent.createChooser(sendIntent, "Please Select an App"));
+                    }})
+                        .setNeutralButton("Delete", new DialogInterface.OnClickListener() {
                             @Override
                             public void onClick(DialogInterface dialog, int which) {
-                                File file = new File(context.getFilesDir(), "export.txt");
-
-                                try {
-                                    if (!file.exists()) {
-                                        file.createNewFile();
-                                    }
-                                    FileOutputStream writer = openFileOutput(file.getName(), Context.MODE_PRIVATE);
-                                    for (String string: data){
-                                        writer.write(string.getBytes());
-                                        writer.flush();
-                                    }
-
-                                    writer.close();
-                                } catch (IOException e){
-                                    e.printStackTrace();
-                                }
-
-                                Intent sharingIntent = new Intent(Intent.ACTION_SEND);
-                                sharingIntent.setType("text/*");
-                                sharingIntent.putExtra(Intent.EXTRA_STREAM, Uri.parse("file://" + file.getAbsolutePath()));
-                                startActivity(Intent.createChooser(sharingIntent, "share file with"));
+                                prefs.edit().remove("textboxdata"+listIDs.get(positioninlist)).apply();
+                                listItems.remove(positioninlist);
+                                listIDs.remove(positioninlist);
+                                adapter.notifyDataSetChanged();
                             }
-                        }).show();
+                        })
+                        .show();
 
             }
         });
     }
 
-    public void getData(String vidID){
+    public void getData(String vidID) {
         SharedPreferences prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
         data = new ArrayList<String>(1);
         ArrayList<ArrayList<String>> savedTasks = new ArrayList<ArrayList<String>>(1);
-        try{
-            prefsString = prefs.getString("textboxdata"+vidID,ObjectSearlizer.serialize(new ArrayList<ArrayList<String>>()));
+        try {
+            prefsString = prefs.getString("textboxdata" + vidID, ObjectSearlizer.serialize(new ArrayList<ArrayList<String>>()));
             savedTasks = (ArrayList<ArrayList<String>>) ObjectSearlizer.deserialize(prefsString);
-        } catch (IOException e){
+        } catch (IOException e) {
             e.printStackTrace();
-        } catch (ClassNotFoundException e){
+        } catch (ClassNotFoundException e) {
             e.printStackTrace();
         }
 
 
-        for (ArrayList<String> line: savedTasks) {
-            data.add(line.get(0).toString()+"\t"+line.get(1).toString());
+        for (ArrayList<String> line : savedTasks) {
+            data.add(line.get(0).toString() + "\t" + line.get(1).toString());
         }
 //        textView.setText(textView.getText().toString().trim());
     }
 
+    public boolean onSupportNavigateUp() {
+        onBackPressed();
+        return true;
+    }
 }
